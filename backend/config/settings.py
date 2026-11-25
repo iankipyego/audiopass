@@ -10,20 +10,37 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+# settings.py lives in backend/config/, so BASE_DIR is backend/.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# REPO_ROOT is the audiopass/ project root, where .env and .env.example live.
+REPO_ROOT = BASE_DIR.parent
+
+# Load variables from the .env file at the repo root into os.environ.
+# .env is gitignored; copy .env.example to .env and fill in real values.
+load_dotenv(REPO_ROOT / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-o$81*h!jud&9nw_tyd2a&_s*kpo))lah2z$t#0eq92qi!45+f^'
+# Secret key used for cryptographic signing (sessions, CSRF tokens, password
+# reset tokens). Read from .env so it is never committed to git (CLAUDE.md #6).
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "SECRET_KEY is not set. Copy .env.example to .env and provide a value."
+    )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# True only for local development. Parsed from the DEBUG var in .env so that
+# production cannot accidentally run with debug exposed.
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("1", "true", "yes", "on")
 
 ALLOWED_HOSTS = []
 
@@ -37,6 +54,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Local apps
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -71,13 +90,25 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
+# PostgreSQL. Connection details come from .env (DB_NAME, DB_USER, DB_PASSWORD,
+# DB_HOST, DB_PORT) so credentials are never committed to git (CLAUDE.md #6).
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'audiopass'),
+        'USER': os.environ.get('DB_USER', 'audiopass'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
+
+
+# Auth
+# https://docs.djangoproject.com/en/6.1/topics/auth/customizing/#substituting-a-custom-user-model
+# Use our custom user model in accounts. This MUST be set before the first
+# migration is created; since accounts has no migrations yet, now is the time.
+AUTH_USER_MODEL = 'accounts.User'
 
 
 # Password validation
